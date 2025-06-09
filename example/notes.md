@@ -1,25 +1,84 @@
-# Make a Pretty Layout Using TailwindCSS
-This lesson the page gets jazzed up with a template from [Tailwind](https://tailwindcss.com/plus/ui-blocks/application-ui/application-shells/stacked). This template replaces the code in the layout.blade.php file.
+# Style the Currently Active Navigation Link
+In order to style the active navigation link the app needs to know what the current url is. Fortunately Laravel has a built in helper that can be used to determine just that.
 
-The template has a hardcoded page heading but it would be nicer if this was dynamic. This can be achieved in a couple of different ways; Either by passing `attributes` or `'props'` to the <x-layout> tag:
-
-**home.blade.php**
+**nav-link.blade.php**
 ```php
-<x-layout heading="Dashboard">
-    // 
-</x-layout>
+<a {{ $attributes }} class="{{ request()->is('/') ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">Home</a>
 ```
 
- *or* by using a **named slot**:
+But now the url given to request()->is() is locked to '/'. Stuck in the component and unable to be changed. One way around this is to use props.
 
-**home.blade.php**
- ```php
-<x-layout>
-    <x-slot:heading>Dashboard</x-slot:heading>
-</x-layout>
- ```
+## Attributes Vs. Props
+Put simply, `attributes` refers to html attributes. Things like `href`, `id`, `class` etc. A `prop` on the other hand is pretty much anything that *isn't* an attribute.
 
- Then in the template the heading can be used.
+Props are defined using Blade's `@props` directive. Blade directives are basically just shorthand PHP which will be translated to vanilla PHP at runtime, just like the mooustache syntax.
 
- **layout.blade.php**
- <h1>{{ $heading }}</h1>
+**nav-link.blade.php**
+```php
+@props(['active'])
+
+<a {{ $attributes }} class="{{ request()->is('/') ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">Home</a>
+```
+
+**layout.blade.php**
+<x-nav-link href="/" :active="request()->is('/')">🏡 Home</x-nav-link>
+
+And this is why it's important to define the props in the component. If the props hadn't been defined in the component then Laravel would just treat `active` as another attribute. This would obviously cause the code to break.
+
+It's also worth noting here that the prop name is preceeded by a colon `:active`. This is also important as it let's Laravel know that this property should be treated as an expression and not a string. This way, boolean values are evaluated properly which is exactly what is needed in this case.
+
+### Homework
+Create a type prop so that the nav-link element can be either an <a> or a <button> tag.
+
+#### My Attempt
+**nav-link.blade.php**
+```php
+@props([
+    'active' => false,
+    'type' => 'a', // defaults to <a> if no type specified
+    ])
+
+<{{ $type }}
+    {{ $attributes }}
+    class="{{ $active ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }} rounded-md px-3 py-2 text-sm font-medium"
+    aria-current="{{ $active ? 'page' : false }}"
+    >
+    {{ $slot }}
+</{{ $type }}>
+```
+
+**layout.blade.php**
+```php
+<x-nav-link type="button">👤 Login</x-nav-link>
+```
+
+#### Laracasts Solution
+While the solution I implemented above was demonstrated as an example of how this might be approached ultimately the solution was this:
+
+**nav-link.blade.php**
+```php
+@props([
+    'active' => false,
+    'type' => 'a', // defaults to <a> if no type specified
+    ])
+
+<?php if($type === 'a') : ?>
+    <a
+        {{ $attributes }}
+        class="{{ $active ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }} rounded-md px-3 py-2 text-sm font-medium"
+        aria-current="{{ $active ? 'page' : false }}"
+        >
+        {{ $slot }}
+    </a>
+<?php else : ?>
+    <button
+        {{ $attributes }}
+        class="{{ $active ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }} rounded-md px-3 py-2 text-sm font-medium"
+        aria-current="{{ $active ? 'page' : false }}"
+        >
+        {{ $slot }}
+    </button>
+<?php endif; ?>
+```
+
+Remember that the php tags could also be substituted for Blade directive syntax @if, @else, @endif.
