@@ -1,18 +1,65 @@
-# 02. Your First Route and View
+# 03. Create a Layout File Using Laravel Components
 
-Routes are found in the routes directory inside web.php and are structured like this:
+A powerful feature in Laravel is the Blade templating engine. It allows for the creation of reusable components that are scalable and reduce repetition in templates.
 
-```php
-Route::get('/', function () {
-    return view('welcome');
-});
+Files can leverage the Blade engine by adding the blade suffix to the file name
+
+```
+welcome.blade.php
 ```
 
-In this case the `Route` class is calling the `get()` method which accepts a `$uri`. It then calls a helper function to return the `view`.
+Components can be many things such as layout files, menus, navigation, forms etc. Basically anything you like that would be useful if it was re-usable.
 
-It's worth noting that the `get()` method doesnt *have* to return a view. It can return a `string`, `array` or other things.
+## Creating a component
+Laravel expects components to live inside a components directory. Anything within it will be treated as a component.
 
-## Views
-Views are basically the html. View files are stored in the `resources/views` directory. Laravel uses the `Blade` templating language for it's views but plain html can also be used.
+```
+|- resources/views/components
+|--> layout.blade.php
+```
 
-In order for the route to get the view there must be a view file with the same name as the file that is being returned by the route. The route above for example calls `welcome.blade.php`.
+Then within the component file create the component how you would in any other html file.
+
+## Using the Component
+Components are used by referencing the components using custom html tags. The tags always start with `x-` to prevent any possible clashes with existing components.
+
+```html
+<x-layout>
+    <!-- Page content goes here -->
+</x-layout>
+```
+
+## Adding Content
+Unfortunately the content cant quite just be dumped in between the layout tags. Blade expects content to be `slotted` so that it knows where to put things. Blade achieves this by using double curly braces or moustache syntax and the `$slot` keyword which is available globally thanks to PHP.
+
+```php
+<x-layout>
+    {{ $slot }}
+</x-layout>
+```
+
+All this moustache syntax is doing is shorthanding PHP. It literally translates to:
+```php
+<?php echo $slot ?>
+```
+
+At runtime the blade shorthand is compiled back down to this vanilla PHP. They are absolutely interchangeable but the shorthand is obviously more efficient and cleaner.
+
+## Homework
+The assignemnt was to extract the navigation links into their own component so that they too can be more modular.
+
+For the most part the approach was the same as creating the layout component.
+
+The tricky part of this assignment was setting the `href` attribute uniquely for each <x-nav-link> component. Fortunately, Blade provides access to an `$attribute` object which will store attributes that are passed to a given component.
+
+**nav-link.blade.php**
+```php
+<a {{ $attributes }}>{{ $slot }}</a>
+```
+
+**layout.blade.php**
+```php
+<x-nav-link href="/">Home</x-nav-link>
+<x-nav-link href="/about">about</x-nav-link>
+<x-nav-link href="/contact">contact</x-nav-link>
+```
