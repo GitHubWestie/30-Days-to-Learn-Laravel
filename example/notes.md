@@ -1,158 +1,65 @@
-# Autoloading, Namespaces, and Models
-
-The duplication of the jobs array needs to be removed from the routes file. This will be done incrementally to better illustrate the process. To begin remove the arrays from the routes and place one array at the root of the file. Then update the route functions to `use()` the `$jobs` array.
-
-**web.php**
-```php
-use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Route;
-
-$jobs = [
-    [
-        'id' => 1,
-        'title' => 'Director',
-        'salary' => '$50,000',
-    ],
-    [   
-        'id' => 2,
-        'title' => 'Programmer',
-        'salary' => '$10,000',
-    ],
-    [
-        'id' => 3,
-        'title' => 'Teacher',
-        'salary' => '$40,000',
-    ],
-];
-
-Route::get('/jobs', function () use ($jobs) {
-    return view('jobs', [
-        'jobs' => $jobs,
-    ]);
-});
-
-Route::get('/jobs/{id}', function ($id) use ($jobs) {
-    
-    // Returns the first job that matches the given $id
-    $job = Arr::first($jobs, fn($job)=> $job['id'] == $id);
-    
-    return view('job', [
-        'job' => $job,
-    ]);
-});
-```
-
-The array can then be moved into a class where a method can be defined to return all of the jobs.
+# Introduction to Migrations
+Migration files are essentially blueprints for database tables. 
 
 ```php
-class Jobs
-{
-    public static function all() 
+public function up(): void
     {
-        return [
-            [
-                'id' => 1,
-                'title' => 'Director',
-                'salary' => '$50,000',
-            ],
-            [   
-                'id' => 2,
-                'title' => 'Programmer',
-                'salary' => '$10,000',
-            ],
-            [
-                'id' => 3,
-                'title' => 'Teacher',
-                'salary' => '$40,000',
-            ],
-        ];
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->rememberToken();
+            $table->timestamps();
+        });
     }
-}
-
-Route::get('/jobs', function () {
-    return view('jobs', [
-        'jobs' => Jobs::all(),
-    ]);
-});
-
-Route::get('/jobs/{id}', function ($id) {
-    
-    // Returns the first job that matches the given $id
-    $job = Arr::first(Jobs::all(), fn($job)=> $job['id'] == $id);
-    
-    return view('job', [
-        'job' => $job,
-    ]);
-});
-
 ```
 
-But it doesnt really make sense for a class to live inside the routes file. So this should be extracted into it's own file, inside the models directory. The choice to put it in the models directory is not an arbitrary one. Laravel, like many other frameworks implements an MVC (Model, View, Controller) architecture. The Model element is where business logic lives and is therefore a suitable home for the Jobs class.
+Once a migration file has been created or updated the migrations must be run in order for the changes to be reflected in the database. There are many migration options available through `php artisan`. Some are not suitable for use on a production database, for example `php artisan migrate:refresh`, as this would drop all data and rebuild the database from scratch so be aware when running migrations.
 
-**app/Models/Jobs.php**
+Other commands such as `php artisan migrate:rollback` allow the most recent migration to be undone. 
+
+**Migration commands list**
 ```php
-namespace App\Models;
+ migrate
+  migrate:fresh             Drop all tables and re-run all migrations
+  migrate:install           Create the migration repository
+  migrate:refresh           Reset and re-run all migrations
+  migrate:reset             Rollback all database migrations
+  migrate:rollback          Rollback the last database migration
+  migrate:status            Show the status of each migration
+```
+*Run php artisan in the terminal to see the list of available commands*
 
-class Jobs
+## Creating a Migration
+To create a new migration file run `php artisan make:migration`. This will prompt for a name. Be aware of the names of existing tables when creating new ones. Avoid duplications!
+
+Laravel will create a boilerplate migration file with an `up()` method closure and a `down()` method closure. The up method will contain the changes to apply to the database. The `down()` method should essentially undo whatever the `up()` method does.
+
+```php
+return new class extends Migration
 {
-    public static function all() 
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
     {
-        return [
-            [
-                'id' => 1,
-                'title' => 'Director',
-                'salary' => '$50,000',
-            ],
-            [   
-                'id' => 2,
-                'title' => 'Programmer',
-                'salary' => '$10,000',
-            ],
-            [
-                'id' => 3,
-                'title' => 'Teacher',
-                'salary' => '$40,000',
-            ],
-        ];
-    }
-}
-```
-
-Then all that is required in web.php is to `use` class. This allows the same access to the models methods as when it was declared in web.php.
-
-**web.php**
-```php
-use App\Models\Jobs;
-```
-
-### A note on Namespaces
-Namespaces are essentially a way of organising directories, files, classes etc. The `Jobs` class is not unique and other Jobs classes already exist within Laravel. A `namespace` tells Laravel explicitly *which* Jobs class is required.
-
-## Back to Business (Logic)
-The Jobs class also allows the flexibility to tuck complicated logic away and make it more user friendly. For example the logic responsible for getting a single job can now be rolled up into a method like `find()`
-
-```php
-public static function find(int $id)
-{
-    // Returns the first job that matches the given $id
-    $jobs = Arr::first(Jobs::all(), fn($job)=> $job['id'] == $id);
-
-    if(!$job) {
-        abort(404);
+        Schema::create('job_listings', function (Blueprint $table) {
+            $table->id();
+            // Add table columns in here...
+            $table->timestamps();
+        });
     }
 
-    return $job;
-}
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('job_listings');
+    }
+};
 ```
 
-Making the logic much cleaner in web.php
-```php
-Route::get('/jobs/{id}', function ($id) {
-    
-    $job = Jobs::find($id);
-    
-    return view('job', [
-        'job' => $job,
-    ]);
-});
-```
+Then run `php artisan migrate` to push the new table to the database.
