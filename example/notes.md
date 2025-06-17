@@ -1,120 +1,104 @@
-# Meet Eloquent
-Eloquent is an `ORM` or `Object Relational Mapper`. All this means that it maps an object in the database, such as a table row, to an `object{}` in PHP code. Simple.
+# Model Factories
+Factories allow you to scaffold or generate fake data for your models. For example, you might want to create 10 users for testing or populate your local environment with many job listings without manually entering each record.
 
-## Getting Started
-To get started with eloquent the `Jobs` model needs to `extend` Laravels built in Model class. As the `Model` class already has many built in methods, including `all()` and `find()`, we'll use those.
-
-Eloquent class names should also be singular so rename the class to `Job`
+Some default models provided by Laravel such as the users model will already have a 
 
 ```php
-<?php
+use HasFactory
+```
 
-namespace App\Models;
+This gives the model access to a bunch of factory methods. One of which being a static function, `factory()`.
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Arr;
+Factories can be used just about anywhere you can write PHP. In this case we're using `tinker`. It works very similarly to how the `Job` class was accessed previously.
 
-class Job extends Model // Extends model class and class name becomes singular
-{
-    public static function all(): array
+```php
+App\Models\User::factory()->create();
+```
+
+The factory method can also be given an integer as an argument. This tells the fatory method how many fake entries we need to generate.
+
+```php
+App\Models\User::factory(100)->create();
+```
+
+## Creating Factories
+You could copy an existing factory but it's almost always better to create a new one. This can be done using artisan.
+```php
+php artisan make:factory JobFactory
+```
+
+As with the models this will also provide extra output if `help` is called before the make:factory instruction
+
+```php
+php artisan help make:factory
+```
+
+Once the factory is created the return array can be populated with the data we want to generate.
+
+```php
+    public function definition(): array
     {
-        //...
+        return [
+            'title' => fake()->jobTitle(),
+            'salary' => fake()->numberBetween(20,000, 90,000),
+        ];
+    }
 ```
+*It is not required that the faker library be used. Hardcoded values are also accepted if that suits the needs of the factory.*
 
-**Important**
-```
-Something that needs to be understood about eloquent is that it favours convention over configuration. 
+If a factory is called on a model that *doesn't* have `use HasFactory` declared within it the factory will fail. `HasFactory` must be present in a model for the factory to work. If a model is created using artisan `php artisan make:model Job` then Laravel will automatically add `HasFactory` in. If a model class is made manually though, the HasFactory trait must also be added manually.
 
-This means that when eloquent sees the 'Job' class it will assume that the table that matches it is 'Jobs'. The class name is often the singular version of the table name and that's an important thing to keep in mind. This also applies to the name of the file itself, not just the class name.
-```
+## Different States
+Different states can be called on factories too. For example the user factory has an unverified function.
 
-As eloquent expects the related table name to be the plural of the class name we have a problem. The jobs table already exists for Laravel so our table is called job_listings to avoid any conflict. There are 2 options in these scenarios:
-
-1. Give the class a protected property called `$table` and then assign it the value `job_listings`
 ```php
-class Job extends Model
-{
-    protected $table = 'job_listings';
-    public static function all(): array
+public function unverified(): static
     {
-        //...
-```
-2. Option two is to simply rename the class `JobListing`
-*Note: If this isn't done Eloquent will return empty collections from the database*
-
-Now when Laravel sees the Job class method calls in the routes it will get the data from the database.
-
-For example:
-```php
-$jobs = Job::all();
-```
-will return a `collection` from the database.
-
-## Interacting with a collection
-Once a collection has been retrieved it can be used in a couple of ways. One way is to interact with it as if it were an array.
-
-For example:
-```php
-$jobs[0];
-```
-Will isolate the first item in the eloquent collection. Once we have that we can access it's attributes just like an array.
-```php
-$jobs[0]->title;
+        return $this->state(fn (array $attributes) => [
+            'email_verified_at' => null,
+        ]);
+    }
 ```
 
-## Tinkering Around
-Laravel ships with a powerful feature `php artisan tinker`. Tinker is like a command line playground that allows trying things out, creating variables, grabbing them, manipulating things, writing and testing functions to see if the output is as expected. The list goes on.
-
-For example let's say we want to try using the `create()` method for the `Job` class. 
-
-* `php artisan tinker` to open the tinker console
-* `App\Models\Job::create(['title' => 'Acme Director', 'salary' => '1,000,000']);`
-
-At the moment this will error and trigger a `mass assignment exception` and it's not because it's wrong. Laravel protects against mass assignment by default as a safety mechanism. Remember, all users are assumed guilty so Laravel handles massassignment this way to protect against bad data. For example if a malicious user insert a sneaky field into a form that wasnt expected, massassignment protection would prevent it from reaching the database.
-
-
-Fortunately Laravel even tells us how to deal with this in the exception.
-```
-Illuminate\Database\Eloquent\MassAssignmentException  Add [title] to fillable property to allow mass a
-ssignment on [App\Models\Job].
-```
-
-By explicitly telling Laravel the properties we wish to be mass assignable we can have mass assignable properties and still be protected from bad data.
-
-This is as simple as adding a protected $fillable array to the class and adding the properties we want to allow for mass assignment.
+When the 100 users were created earlier, all 100 users had the exact same `created_at` value in the database. If for example we needed this to be `null` the unverified method can be chained on to the factory method call.
 
 ```php
-protected $fillable = ['title', 'salary'];
+App\Model\User::factory()->unverified()->create()
 ```
 
-Tinker wont recognise this change automatically so quit Tinker with `ctrl + c` and go back in. Fortunately Tinker does remember previously run commands so push up to get back to any from a previous session.
+## Eloquent Relationships
+Imagine that the jobs board gets really popular and a large company signs up with heaps of job openings. We would want/need some way of tracking all of the jobs from that particular employer. This is where an eloquent relationship comes in.
 
-Now when the create() method is run Tinker should output something like this:
-```php
-= App\Models\Job {#5260
-    title: "Acme Director",
-    salary: "1,000,000",
-    updated_at: "2025-06-17 07:23:44",
-    created_at: "2025-06-17 07:23:44",
-    id: 4,
-  }
-```
+### The relationship
+In order to create an eloquent relationship there needs to be a relationship. In the case of this example an employer table would have an `id` column and that id would be *unique to the employer*. So let's use that id column as a `foreign_id` on the *jobs table* to create the relationship.
 
-Now if we run `App\Models\Job::all()` we will see all of the results from the database including the newly added entry which, because it was created through Eloquent also has timestamps.
+1. Make a an employer model and migration
+    ```php
+    php artisan make:model Employer -m -f
+    ```
+    The `-m` and `-f` flags at the end instructs laravel to make a migration and factory with this model. The great thing about this is it means everything follows the conventions that Laravel likes and we only write one line of code as a command!
 
-The find method can also be used
-```php
-$job = App\Models\Job::find(4);
-```
+2. Add the columns to the migrations
+    * In the new `employers migration` add a name column as a string type
+    * In the `job_listings migration` add a `employer_id` column as an `foreignIdFor()` or an `unsignedBigInteger()`. <-- *THIS is important* When an id is generated using `$table->id();` it uses the `unsignedBigInteger` type. If the foreign key referencing it isnt the same type it will cause a database error. 
 
-And then regular Laravel methods can be used too
-```php
-$job->delete();
-```
+    The alternative `foreignIdFor()` takes an Eloquent model as an argument meaning Laravel will know automagically what the type is.
+    ```php
+    // Laravel automagically knows where the foreign_id should point because it's given the class
+    $table->foreignIdFor(Employer::class);
+    ```
 
-### Homework
-Play around with Models and tinker and get familiar with available options and methods.
+3. Migrate changes
+    As this is very early days and only dummy data exists in the database run `php artisan migrate:fresh`. This will drop all tables and rebuild them from scratch so the database will be empty.
 
-Run `php artisan help make:model` to see a list of all of the available options when creating a model.
+4. Configure the Employer factory
+    Currently the employer table only has one column which is `name` so add the faker for it.
+    ```php
+    'name' => fake()->company();
+    ```
 
-Delete it all after.
+    Then this factory can actually be used by the job_listings table to generate an id for the employer_id column. Update the JobFactory to use the EmployerFactory
+    ```php
+    // employer_id calls the factory and when the factory creates a record an id is made
+    'employer_id' => Employer::factory(),
+    ```
