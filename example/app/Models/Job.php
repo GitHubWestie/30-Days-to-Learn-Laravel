@@ -15,4 +15,9 @@ class Job extends Model // Extending to Model gives access to all of it's method
         'title',
         'salary',
     ];
+
+    public function employer()
+    {
+        return $this->belongsTo(Employer::class);
+    }
 }
