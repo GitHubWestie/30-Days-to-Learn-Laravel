@@ -74,4 +74,3 @@ Unbelievably simple and *eloquent* 👀
 
 ## Lazy Loading
 What's actually happening here is known as `lazy loading`. This refers to the act of leaving delaying a SQL query until the last possible moment. The last possible moment being the moment we request that data from the query.
-
