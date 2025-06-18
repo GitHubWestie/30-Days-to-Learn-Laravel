@@ -40,7 +40,7 @@ Once the factory is created the return array can be populated with the data we w
     {
         return [
             'title' => fake()->jobTitle(),
-            'salary' => fake()->numberBetween(20,000, 90,000),
+            'salary' => fake()->numberBetween(20000, 90000),
         ];
     }
 ```
