@@ -20,4 +20,9 @@ class Job extends Model // Extending to Model gives access to all of it's method
     {
         return $this->belongsTo(Employer::class);
     }
+
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, table:"job_tags", foreignPivotKey:"job_listings_id");
+    }
 }
