@@ -115,6 +115,7 @@ $tag->jobs()->attach(7);
 ### get()
 But if you try and get this collection again the newly tagged job wont show up. This is because that query has already been loaded into tinkers memory so it wont actually run the query again. To get around this use `get()`.
 
+12.-Pivot-Tables-and-belongsToMany-Relationships
 ```php
 $tag->jobs()->get();
 ```
