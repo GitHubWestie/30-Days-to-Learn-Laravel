@@ -1,35 +1,8 @@
-13.-Eager-Loading-and-the-N+1-Problem
-# Eager Loading and the N+1 Problem
-The `N+1` problem refers to database queries executed within a loop, rather than making a single query that loads the required data upfront.
-
-Currently the jobs view is doing exactly that:
-```php
-    <div class="space-y-4">
-        @foreach($jobs as $job)
-            <a href="jobs/{{ $job['id'] }}" class="block px-4 py-6 border border-gray-200 rounded-lg">
-                <div class="font-bold text-blue-500">{{ $job->employer->name }}</div>
-                <div><strong>{{ $job['title'] }}</strong>: Pays {{ $job['salary'] }} per year</div>
-            </a>
-        @endforeach
-    </div>
-```
-
-Everytime a relationship is referenced (like `employer` in the loop above) another query is being executed. This is called `lazy loading`. And because this relationship is being referenced inside a loop that query will be executed however many times that loop iterates over the `$jobs` array. On a real jobsboard that could easily run into the hundreds or even thousands very quickly, introducing significant overhead to the application.
-
-## Laravel debug bar
-The laravel debug bar gives a gui view of all sorts of metrics, including queries. To install it copy and paste the install command:
-```
-composer require barryvdh/laravel-debugbar --dev
-```
-A quick inspection of the debug bar queries tab shows 12 queries being executed, 10 of which are almost identical:
-![lazyLoadedQuery](image.png)
-*A lazy loaded query performs a new query for each iteration of the loop*
+14.-All-You-Need-to-Know-About-Pagination
+# All You Need to Know About Pagination
 
 
-[Laravel Debug Bar on github](https://github.com/barryvdh/laravel-debugbar)
-
-## Fix the problem
-To fix this issue we can implement `eager loading`. Laravel provides a `with` method that can be used on the class obejct. It allows a relationship to be referenced `with` the query so when the jobs are retrieved from the database the specified relationship (in this case `employer`) will be retrieved with them.
+At the moment the jobs route is getting all of the jobs from the database in one query and dumping them all into memory when the page is requested.
 
 ```php
 Route::get('/jobs', function () {
@@ -41,21 +14,55 @@ Route::get('/jobs', function () {
 });
 ```
 
-Now instead of the relationship being called by the loop it is called on the original query. The loop doesn't actually change at all but when `$job->employer->name` is used the data is coming directly from the `$jobs` array instead of executing a new query for each job.
+That's ok while there's only a small number of jobs in the database but if there were hundreds or even thousands like there would be in real life this would have huge overhead and cause the app to be extremely slow. Pagination allows the results to be broken up into managable chunks.
 
-![eagerLoadedQuery](image-1.png)
-*An eager loaded query makes a single query and gets all the data it needs ahead of time*
+## Pagination
+Laravel makes paginating query results easy.
 
-It's worth noting though that although `get()` is used here if the database had 1000's of jobs this probably wouldn't be suitable and `pagination` or `limit` would be a better idea. The `get()` method is just saying `SELECT *`.
+```php
+Route::get('/jobs', function () {
+    $jobs = Job::with('employer')->paginate(3); // The number tells Laravel how many results to display per page
 
-## To be lazy or not?
-If it's desirable lazy loading can actually be completely disabled in the `App\Providers\AppServiceProvider.php`. The `AppServiceProvider` can be thought of as a configuration file for the app. In this case the configuration would be lazy loading disabled. Specifically this would live in the `boot()` method which is loaded after all other project dependencies have been fully loaded.
+    return view('jobs', [
+        'jobs' => $jobs,
+    ]);
+});
+```
+
+Adding the pagination to the view is equally as simple.
+
+```php
+// jobs.blade.php
+<div>{{ $jobs->links() }}</div>
+```
+
+Functionally, that's it. Done. And even aesthetically, if using Tailwind that's also done as the paginator comes with Tailwind classes baked in.
+
+## My shit is custom
+If the styles arent desirable they can be changed. By default they live in the vendor directory. To update the styles we'll need a copy in our project.
+
+```php
+php artisan vendor:publish
+```
+
+Running this command will bring up a list of all vendor packages. In this case look for `tag:laravel-pagination` and enter the associated number into the command line. The files will be copied and placed in their own directory within the views folder.
+
+Inside that directory are many files for various css frameworks. If another framework was preferable then this can be configured in AppServiceProvider just like the lazy loading option.
 
 ```php
     public function boot(): void
     {
         Model::preventLazyLoading();
+
+        Paginator::useBootstrapFive();
+        // Paginator::defaultView(''); // Control the pagination entirely through a view
     }
 ```
 
-Now if any attempt is made to lazy load anything Laravel will throw an error and the lazy loading will have to be fixed to restore functionality.
+In our case we want to edit the `tailwind.blade.php` file.
+
+## Pagination Options
+Even using pagination the queries will still introduce significant overhead with enough results being pulled in. Another option is `simplePaginate()`. This replaces the pages nav with simple previous and next buttons instead that will simply navigate through the paginated results one page at a time.
+
+Another option is `cursor based pagination` by using `cursorPaginate()`. This is the most performant option of the three choices but it does come with a small caveat. The url generated by cursor based pagination is like a random uuid and relates specifically to the data being fetched. This wont be suitable for all applications such as if the url was to be used to get a query string for some reason or something similar. But it's a useful tool when it suits the situation.
+
