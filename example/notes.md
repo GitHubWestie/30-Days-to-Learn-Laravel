@@ -1,5 +1,7 @@
+15.-Understanding-Database-Seeders
 # Understanding Database Seeders
 Seeders are extremely useful for quickly building up records in the database. Laravel supplies a user seeder class.
+
 ```php
 class DatabaseSeeder extends Seeder
 {
