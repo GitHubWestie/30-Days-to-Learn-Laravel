@@ -1,3 +1,4 @@
+16.-Forms-and-CSRF-Explained
 # Forms and CSRF Explained
 For a user to add a job to the jobsboard, or perhaos for a user to apply for a job on the jobsboard the app will need some forms. In `web.php` add a new route. Following convention will mean that this route is named `/jobs/create`.
 
@@ -28,6 +29,7 @@ Currently the form doesnt have a route to submit to so any data submitted goes n
 ```html
 <form method="POST" action="/jobs">
 ```
+
 ```php
 Route::post('/jobs', function () {
     // Something happens here
