@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Job;
 use Illuminate\Database\Eloquent\Model;
 // use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
@@ -22,7 +23,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Model::preventLazyLoading();
-
+        
+        // Model::unguard();
         // Paginator::useBootstrapFive(); Just an example of changing the default
     }
 }
