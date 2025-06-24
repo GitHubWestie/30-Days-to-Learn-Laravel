@@ -1,3 +1,4 @@
+17.-Always-Validate.-Never-Trust-the-User-
 # Always Validate. Never Trust the User.
 
 Validation can be implemented at various points of the application in a couple of different ways. 
