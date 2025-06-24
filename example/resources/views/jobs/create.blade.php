@@ -17,6 +17,9 @@
                                     class="block min-w-0 grow py-1.5 pr-3 px-3 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none sm:text-sm/6"
                                     placeholder="Shift Leader" />
                             </div>
+                            @error('title')
+                                <p class="text-sm italic text-red-500 mt-1">{{ $message }}</p>
+                            @enderror
                         </div>
                     </div>
                     <div class="sm:col-span-4">
@@ -28,9 +31,21 @@
                                     class="block min-w-0 grow py-1.5 pr-3 px-3 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none sm:text-sm/6"
                                     placeholder="30,000" />
                             </div>
+                            @error('salary')
+                                <p class="text-sm italic text-red-500 mt-1">{{ $message }}</p>
+                            @enderror
                         </div>
                     </div>
                 </div>
+                {{-- <div class="text-sm italic text-red-500">
+                    @if ($errors->any())
+                    <ul>
+                        @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                    @endif
+                </div> --}}
             </div>
         </div>
 
