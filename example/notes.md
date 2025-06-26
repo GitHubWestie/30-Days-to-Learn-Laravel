@@ -1,3 +1,4 @@
+19.-Routes-Reloaded---6-Essential-Tips
 # Routes Reloaded - 6 Essential Tips
 
 ## Route Model Binding
