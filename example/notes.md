@@ -1,49 +1,43 @@
-# Starter Kits, Breeze, and Middleware
-Laravel provides starter kits like Laravel Breeze to quickly scaffold common authentication features such as registration, login, password reset, and profile management.
+# Make a Login and Registration System
+To implement any kind of registration or authentication an app needs forms. Lots of forms. To save time in the long run we can extract the existing create a job form into reusable components.
 
-## Using Laravel Breeze Starter Kit - Pre Laravel 12
-You can scaffold a new Laravel project with Breeze by running:
+## Extracting Form Components
+Create reusable Blade components for:
 
+form-label.blade.php — for form labels
+form-error.blade.php — for displaying validation errors
+form-input.blade.php — for input fields
+These components accept attributes and slots to make them flexible.
+
+Example usage in a form:
+
+<x-form-label for="title">Title</x-form-label>
+<x-form-input id="title" name="title" required />
+<x-form-error name="title" />
+
+You can then even bundle them all together into another component called `form-field.blade.php`.
+
+## Building Registration and Login Forms
+
+* Create `register.blade.php` and `login.blade.php` views under an `auth directory/namespace`.
+* Use the form components to build inputs for `first name`, `last name`, `email`, `password`, and `password confirmation`.
+* Add `required attributes` for client-side validation.
+
+## Defining Authentication Routes and Controllers
+
+* Create controllers using
+    ```
+    php artisan make:controller <ControllerName>
+    ```
+* Add routes for showing `registration` and `login` forms (`GET /register`, `GET /login`).
+* Add routes for handling form submissions (`POST /register`, `POST /login`).
+
+## Displaying Authentication Links Conditionally
+Blade has some very useful directives for handling conditional html concerning authenticated users. The `@auth` and `@guest` directives can be used and any content inside their tags will only render if the condition evaluates to true.
+
+```php
+    @guest
+        <x-nav-link href="/login" :active="request('login')">Login</x-nav-link>
+        <x-nav-link href="/register" :active="request('register')">Register</x-nav-link>
+    @endguest
 ```
-laravel new app
-```
-
-and selecting Breeze as the starter kit during setup. Breeze assumes a fresh project and will overwrite some files like routes, views, and components.
-
-Breeze supports multiple frontend stacks including React, Vue, Livewire, or traditional Blade with JavaScript.
-
-## Using Laravel Breeze Starter Kit - Laravel 12
-Since Laravel 12 the options have changed during the setup process of a new project. To setup a new project with breeze scaffolding create a new project in Herd or run:
-```
-laravel new app
-```
-
-Choose no starter kit and let Laravel build the project. When Laravel has finished run:
-```
-composer require laravel/breeze --dev
-```
-
-Once the required packages have been acquired run:
-```
-php artisan breeze:install
-```
-
-Once composer has finished it's advised to run migrations and npm i && npm run dev.
-
-After installation, run the app and you’ll see login and register links.
-
-## Features Included
-* Registration and login forms
-* Dashboard accessible only to authenticated users
-* Profile editing and password update
-* Logout functionality
-* Middleware to protect routes and redirect guests to login
-
-## Authentication in Breeze
-Routes are protected by middleware like `auth` and `verified` to ensure only signed-in and verified users can access certain pages.
-The authenticated user can be accessed via the `Auth::` facade or helper.
-Breeze uses Blade components extensively for layouts, inputs, labels, and validation errors.
-Registration logic includes validation, password hashing, event firing, and automatic login.
-
-## Middleware Explained
-Middleware acts as layers that process requests before reaching your application logic. For example, the auth middleware checks if a user is signed in and redirects to login if not.
