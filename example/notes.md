@@ -1,114 +1,113 @@
-21.-Make-a-Login-and-Registration-System
-# Make a Login and Registration System
-With the frontend elements in place the backend logic can now be implemented for full authentication functionality.
+23.-6-Steps-to-Authorization-Mastery
+# 6 Steps to Authorization Mastery
 
-## Registration Process
-When a user submits the registration form, the following steps occur:
+## Step 1: Establishing Relationships for Authorization
+To perform user authorization on a job, there must be a relationship between the job and a user. Currently, jobs relate to employers, but employers don’t relate to users. Fix this by adding a foreign key user_id to the employers table and updating the Employer factory to associate an employer with a user.
 
-* Validation
-    Use `$request->validate()` to ensure required fields like first name, last name, email, and password meet your criteria. Laravel provides many validation rules, including a fluent Password helper for complex password requirements.
-    
+```php
+// create_employers_migration_table.php
+$table->foreignIdFor(User::class);
+
+// EmployerFactory.php
+'user_id' => User::factory(),
+```
+
+## Step 2: Inline Authorization in Controller
+Add a simple authorization check in your job controller’s edit action:
+
+* Redirect guests to login.
     ```php
-    'password' => ['required', Password::required()->min(8)->max(16)->letters()->numbers()],
-    ```
-
-    The password validation rules can also be set in `AppServiceProvider` and then called in the same way but using the default method instead which is much more readable.
-    
-    ```php
-    'password' => Password::default(),
-    ```
-
-    Finally we can also add the `confirmed` rule to the password validation. When the `confirmed` rule is present Laravel will look for a field by the name of `password_confirmation` and automatically compare the values. This rule can also be used on other fields. Laravel only requires that the naming convention is `<field>_confirmation` in the form so that it can recognise it in the validator.
-
-    ℹ️ *A list of available validation rules can be found at [Laravel.com](https://laravel.com/docs/12.x/validation#available-validation-rules)*
-
-* Creating the User
-    With the data validated the user can now be created using that data. Rather than inputting the data into the `User::create` method manually the validated data can be assigned to a variable and sent through that way `User::create($validatedData)`.
-    
-    For ultimate efficiency the validation can even be inlined staright into `User::create()`.
-
-    ```php
-    User::create(request()->validate([
-        // validation...
-    ]));
-    ```
-
-    Once the user has been created you'll find the password has been `hashed`. This was done thanks to the `casts()` function in the default user model. 
-
-    ℹ️ *Attributes that are `cast` are attributes that can be changed upon saving or retrieving them from the database. So in the case of a password when the user picks a rubbish password like 'password' it is hashed into something unreadable. When the user logs in the password is retrieved and converted back into the password the user chose.*
-
-* Logging In
-    Use `Auth::login($user)` to sign in the newly registered user.
-
-* Redirecting
-    `Redirect` the user to a desired page, such as the jobs listing or dashboard.
-    ```php
-    return redirect('/jobs');
-    ```
-
-All these steps form the `PRG` pattern or `Post`, `Request`, `Get`.
-
-* Logout
-    Logging out should always be handled by a form and a `POST` request and **NOT** a link!
-    
-    ```php
-    <form method="POST" action="/logout">
-        <button type="submit">Logout</button>
-    </form>
-    ```
-
-    Setup a route to listen for the logout request
-    ```php
-    Route::post('/logout', [SessionController::class, 'destroy']);
-    ```
-    
-    The logout logic is also made ludicrously easy by Laravel.
-    ```php
-    public function destroy()
-    {
-        Auth::logout();
-
-        return redirect('/jobs');
+    if (Auth::guest()) {
+        return redirect('/login');
     }
     ```
 
-## Logging in an Existing User
-When a user submits the login form:
+* Check if the authenticated user is responsible for the job.
+    ```php
+    if ($job->employer->user->isNot(Auth::user())) {
+        abort(403);
+    }
+    ```
+    *The `is()` and `isNot()` allow for quick comparison to check if two models have the same id and belong to the same table.*
 
-* Validation
-    Validate the email and password fields.
+    Rather than displaying a 403 forbidden page to the user if they're not allowed to edit a job, it would be far better UX to not display the edit button at all. The only issue with that though is that the logic to determine whether a user should see that button is stuck inside the edit function. The `Gate facade` can help solve this:
 
-* Authentication Attempt
-    Use `Auth::attempt($credentials)` to try logging in.
+* Extract the logic to a `Gate`
+    ```php
+    // Define the gate function
+    Gate::define('edit-job', function (User $user, Job $job) {
+        return $job->employer->user->is($user);
+    });
 
-* Session Regeneration
-    On successful login, regenerate the session token for security `$request->session()->regenerate();`.
+    // Implement the gate
+    Gate::authorize('edit-job', $job);
+    ```
+    *This now uses `is()` to return a boolean value*
 
-* Redirect
-    Redirect the user to the intended page `return redirect('/')`.
+    By default `Gate::authorize` will return a `403` if the gate evaluates to `false`. This can be overridden by using `Gate::allows()` or `Gate::denies()`. Then a custom closure can be written to execute specific logic.
 
-* Handling Failure
-    If login fails, throw a validation exception with an appropriate error message.
+## Step 3: Define Gates Inside AppService Provider
+Because the Gate is defined within the edit method of the controller it is only available when that specific route is accessed. To make it available to the entire app the definition needs to be moved to the `AppServiceProvider` and placed inside the `boot()` method.
 
-And that's the happy path taken care of. But what about the unhappy path? To handle scenarios where the validated form data doesn't match the stored users data we can throw an error using 
+* Move gate to AppServiceProvider
+    ```php
+    // Define the gate function
+    Gate::define('edit-job', function (User $user, Job $job) {
+        return $job->employer->user->is($user);
+    });
+    ```
+    *Note that user will ALWAYS be the current user. If there is no user the gate returns false without reaching the closure logic. If this is undesirable the user can be given a default of null `User $user = null` or made optional `?User $user`*
+
+## Step 4: Using can and cannot Methods
+Laravel models have `can` and `cannot` methods to check permissions against gates. Use these in controllers or Blade views to conditionally allow actions.
 ```php
-throw ValidationException::withMessages([
-    'email' => 'Sorry. Credentials do not match.',
-]);
+// In controller
+if ($user->can(Gate::authorize('edit-job', $job))
+    // Custom logic here...
+);
+
+// Or in Blade template
+@can('edit-job', $job)
+<div class="mt-6">
+    <x-button href="/jobs/{{ $job['id'] }}/edit">Edit Job</x-button>
+</div>
+@endcan
 ```
 
-Now, if the validation fails we'll throw an error. But (depending on the users browser) if an exception is thrown the form fields might be cleared which is bad UX. To preven this Laravel has a `old()` helper that can be used to temporarily remember the most recently entered values in the form.
+## Step 5: Middleware Authorization
+Apply authorization at the route level using middleware:
 
 ```php
-<input id="email" name="email" type="email" :value="old('email')">
+Route::get('/jobs/{job}/edit', [JobController::class, 'edit'])->middleware('auth')->can('edit-job', 'job');
 ```
-ℹ️*The colon before the value attribute is essential. Without this `old()` will simply be treated as a string rather than an expression.*
+This ensures users are authenticated and authorized before accessing the route and is the preferred method for many developers.
 
-## Too much to cover
-That's covered a lot but there is more to authorisation than whats covered here. It is recommended to look into `Rate Limiting` which controls the rate at which subsequent requests can be sent to the server.
+## Step 6: Policies
+`Policies` are similar to `gates`. They simply define a set of rules that can be used to determine various things. In this case we'll create a JobPolicy that contains an `edit` method. This will execute the same logic as the Gate and can be applied in the same way.
 
-[Laravel Route Rate Limiting](https://laravel.com/docs/12.x/routing#rate-limiting)
-[Laravel Rate Limiting](https://laravel.com/docs/12.x/rate-limiting)
+* Create the Policy
+    ```
+    php artisan make:policy
+    ```
+    Laravel will prompt for a name fore the policy and a model to link to
 
-Another thing we missed was restting the password.
-[Laravel Password Reset](https://laravel.com/docs/12.x/passwords)
+* Laravel may pre-populate the policy with functions. These are just suggestions and can be deleted.
+    ```php
+    public function edit(User $user, Job $job) :bool
+    {
+        return $job->employer->user->is($user);
+    }
+    ```
+
+* Update middleware and blade template to reference the new policy method
+    ```php
+    Route::get('/jobs/{job}/edit', [JobController::class, 'edit'])->middlewar('auth')->can('edit', 'job');
+
+    @can('edit', $job)
+    <div class="mt-6">
+        <x-button href="/jobs/{{ $job['id'] }}/edit">Edit Job</x-button>
+    </div>
+    @endcan
+    ```
+
+As a general rule of thumb, for small projects Gates are fine but for anything larger, reach for policies.

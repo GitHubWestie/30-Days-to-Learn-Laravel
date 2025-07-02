@@ -2,17 +2,17 @@
 
 namespace Database\Seeders;
 
-use App\Models\Job as ModelsJob;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\Job;
 
-class Job extends Seeder
+class JobSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        ModelsJob::factory(10)->create();
+        Job::factory(200)->create();  
     }
 }
