@@ -1,113 +1,92 @@
-23.-6-Steps-to-Authorization-Mastery
-# 6 Steps to Authorization Mastery
-
-## Step 1: Establishing Relationships for Authorization
-To perform user authorization on a job, there must be a relationship between the job and a user. Currently, jobs relate to employers, but employers don’t relate to users. Fix this by adding a foreign key user_id to the employers table and updating the Employer factory to associate an employer with a user.
+# How to Preview and Send Email Using Mailable Classes
+The scenario for this assumes that the user is an employer and would like to receive a confirmation email upon successfully posting a new job. To send emails Laravel needs a mailable class
 
 ```php
-// create_employers_migration_table.php
-$table->foreignIdFor(User::class);
-
-// EmployerFactory.php
-'user_id' => User::factory(),
+php artisan make:mail
 ```
 
-## Step 2: Inline Authorization in Controller
-Add a simple authorization check in your job controller’s edit action:
+The terminal will prompt for a name fro the new mail class and if it should create a view. In this case select none.
 
-* Redirect guests to login.
-    ```php
-    if (Auth::guest()) {
-        return redirect('/login');
-    }
-    ```
+## Inside he mail class
+If you look in the mail class you'll see it is constructed of 3 main components:
+* Envelope - Used for defining things like subject, sender, replyto and tags etc.
+* Content - Represents the main body of the email. Returns a view
+* Attachments - Allows content to be attached to the email
 
-* Check if the authenticated user is responsible for the job.
-    ```php
-    if ($job->employer->user->isNot(Auth::user())) {
-        abort(403);
-    }
-    ```
-    *The `is()` and `isNot()` allow for quick comparison to check if two models have the same id and belong to the same table.*
+## Create an email view
+Email views are stored in the views directory. They can be stored in their own sub-dirctory to keep things organised. They are still blade files and will render in the same way.
 
-    Rather than displaying a 403 forbidden page to the user if they're not allowed to edit a job, it would be far better UX to not display the edit button at all. The only issue with that though is that the logic to determine whether a user should see that button is stuck inside the edit function. The `Gate facade` can help solve this:
-
-* Extract the logic to a `Gate`
-    ```php
-    // Define the gate function
-    Gate::define('edit-job', function (User $user, Job $job) {
-        return $job->employer->user->is($user);
-    });
-
-    // Implement the gate
-    Gate::authorize('edit-job', $job);
-    ```
-    *This now uses `is()` to return a boolean value*
-
-    By default `Gate::authorize` will return a `403` if the gate evaluates to `false`. This can be overridden by using `Gate::allows()` or `Gate::denies()`. Then a custom closure can be written to execute specific logic.
-
-## Step 3: Define Gates Inside AppService Provider
-Because the Gate is defined within the edit method of the controller it is only available when that specific route is accessed. To make it available to the entire app the definition needs to be moved to the `AppServiceProvider` and placed inside the `boot()` method.
-
-* Move gate to AppServiceProvider
-    ```php
-    // Define the gate function
-    Gate::define('edit-job', function (User $user, Job $job) {
-        return $job->employer->user->is($user);
-    });
-    ```
-    *Note that user will ALWAYS be the current user. If there is no user the gate returns false without reaching the closure logic. If this is undesirable the user can be given a default of null `User $user = null` or made optional `?User $user`*
-
-## Step 4: Using can and cannot Methods
-Laravel models have `can` and `cannot` methods to check permissions against gates. Use these in controllers or Blade views to conditionally allow actions.
+## View the email
+To view the contents of the email we can setup a quick dummy route to test. All it has to do is instantiate a new instance of the email class.
 ```php
-// In controller
-if ($user->can(Gate::authorize('edit-job', $job))
-    // Custom logic here...
-);
+use App\Mail\JobPosted;
 
-// Or in Blade template
-@can('edit-job', $job)
-<div class="mt-6">
-    <x-button href="/jobs/{{ $job['id'] }}/edit">Edit Job</x-button>
-</div>
-@endcan
+Route::get('/test', function () {
+    return new JobPosted();
+});
 ```
+Then just visit the uri to view the email.
 
-## Step 5: Middleware Authorization
-Apply authorization at the route level using middleware:
+## Sending mail
+To send the email Laravel uses the `email facade`. We can also test this on the dummy route by updating.
+```php
+use Illuminate\Support\Facades\Mail;
+
+Route::get('/test', function () {
+    Mail::to('joe@example.com')->send(new JobPosted());
+
+    return 'Done!'; // Gives us feedback in the browser when visiting the test uri
+});
+```
+Visit the test route again and you should see 'Done!'. As there are currently no mail providers configured for the app Laravel should default to logging the email instead. It will also be viewable in the Laravel DebugBar if installed.
+
+## Mail Config
+Mail config can be found in the config directory. This is where email providers would be configured. There are also other environment variables that can be configured in the .env file for example the `from` address.
+
+There are many different email service providers and each will likely have their own methods for configuring for their service. These should be documented with the provider or sometimes even provided for you. [Mailtrap](https://mailtrap.io/) for example provide settings for many frameworks that can be copied and pasted into the config file.
 
 ```php
-Route::get('/jobs/{job}/edit', [JobController::class, 'edit'])->middleware('auth')->can('edit-job', 'job');
+MAIL_MAILER=smtp
+MAIL_HOST=sandbox.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=your_username
+MAIL_PASSWORD=your_password
+MAIL_FROM_ADDRESS=info@laracasts.com
+MAIL_FROM_NAME="Laracasts"
 ```
-This ensures users are authenticated and authorized before accessing the route and is the preferred method for many developers.
 
-## Step 6: Policies
-`Policies` are similar to `gates`. They simply define a set of rules that can be used to determine various things. In this case we'll create a JobPolicy that contains an `edit` method. This will execute the same logic as the Gate and can be applied in the same way.
+## Implementing email functionality
+To actually send an email when a job is posted the functionality needs to be triggered somewhere. The logic we created for the test route can be used from the `JobController` so that it is automatically fired when a job is created.
 
-* Create the Policy
-    ```
-    php artisan make:policy
-    ```
-    Laravel will prompt for a name fore the policy and a model to link to
+Instead of harcoding an recipient email the relationships can be leveraged to get the email of the user creating the job instead. We can also return get the data for that job in the email constructor by passing the `$job` object into `JobPosted()`.
 
-* Laravel may pre-populate the policy with functions. These are just suggestions and can be deleted.
-    ```php
-    public function edit(User $user, Job $job) :bool
+```php
+    public function store()
     {
-        return $job->employer->user->is($user);
+        // validation...
+        request()->validate([
+            'title' => 'required|min:3',
+            'salary' => 'required',
+        ]);
+
+        $job = Job::create([
+            'title' => request('title'),
+            'salary' => request('salary'),
+            'employer_id' => 1 // Temporarily hardcoded
+        ]);
+
+        // Send confirmation email to user
+        Mail::to($job->employer->user)->send(new JobPosted($job));
+
+        return redirect('/jobs');
     }
-    ```
+```
 
-* Update middleware and blade template to reference the new policy method
-    ```php
-    Route::get('/jobs/{job}/edit', [JobController::class, 'edit'])->middlewar('auth')->can('edit', 'job');
+**Be sure to update the constructor method in JobPosted to accept the $job data**
+```php
+public function __construct(public Job $job)
+```
 
-    @can('edit', $job)
-    <div class="mt-6">
-        <x-button href="/jobs/{{ $job['id'] }}/edit">Edit Job</x-button>
-    </div>
-    @endcan
-    ```
+Something to be aware of with mail classes is that *all* `public` properties are instantly available within the mail view. If there is any data that you dont want to be available it needs to be a `protected` property in order to hide it. Then you can expose only the data that you want to the view by adding a `with: []` array to the view in the email `content()` method.
 
-As a general rule of thumb, for small projects Gates are fine but for anything larger, reach for policies.
+Now when the controller hits the `Mail::to` it will fire an email to the user who created the job. If no email server has been configured this will still go to the logs instead.
