@@ -1,3 +1,4 @@
+23.-6-Steps-to-Authorization-Mastery
 # 6 Steps to Authorization Mastery
 
 ## Step 1: Establishing Relationships for Authorization
