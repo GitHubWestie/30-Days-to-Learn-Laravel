@@ -1,92 +1,86 @@
-# How to Preview and Send Email Using Mailable Classes
-The scenario for this assumes that the user is an employer and would like to receive a confirmation email upon successfully posting a new job. To send emails Laravel needs a mailable class
+# Queues Are Easier Than You Think
+At the moment actions are happening synchronously inside the application. This means that when the email is sent the user has to wait for it to be sent. Just sitting there, staring at the screen, waiting...
+
+Queues all jobs to be deferred or shooed away to the background so the user can carry on doing whatever it is they're doing and things like sending emails can happen in the background as and when they're ready.
+
+## Queue Configuration
+The queue config is found in the config directory. Similar to the email config it contains several options, many of which pull a variable from the `.env` file or fallback to a default.
 
 ```php
-php artisan make:mail
+'default' => env('QUEUE_CONNECTION', 'database'),
 ```
 
-The terminal will prompt for a name fro the new mail class and if it should create a view. In this case select none.
+Laravel supports multiple queue drivers:
 
-## Inside he mail class
-If you look in the mail class you'll see it is constructed of 3 main components:
-* Envelope - Used for defining things like subject, sender, replyto and tags etc.
-* Content - Represents the main body of the email. Returns a view
-* Attachments - Allows content to be attached to the email
+* sync: Runs jobs synchronously (default, useful for local development).
+* database: Stores jobs in a database table.
+* beanstalkd, SQS, Redis: More robust queue backends.
 
-## Create an email view
-Email views are stored in the views directory. They can be stored in their own sub-dirctory to keep things organised. They are still blade files and will render in the same way.
+The default is `database` which incidentally is why our jobs table had to be called jobListings. Laravel had already created a jobs table for using with the database driver.
 
-## View the email
-To view the contents of the email we can setup a quick dummy route to test. All it has to do is instantiate a new instance of the email class.
+## Adding to the queue
+To send something to the queue the `queue()` method is used. In the email example the `send()` method is simply swapped out for `queue()`.
 ```php
-use App\Mail\JobPosted;
+Mail::to($user)->queue(new JobPosted($job));
+```
+However, nothing will happen without a `worker` to pcik up the job! In the terminal run `php artisan queue:work`. You can think of this as summoning a worker to do their job. While this is running the worker will constantly monitor the queue for jobs and handle them as they come in. Without a worker the queue will just stack up.
 
+The `dispatch()` method can also be invoked for queues. This is called a `queued closure` and can have other methods chained onto it like `delay()` which will delay the job from being processed. Useful for things like sending a welocme email after a specific amount of time has passed.
+
+```php
+Route::('/test', function () {
+    dispatch(function () {
+        logger('Hello from the queue!');
+    });
+
+    return 'Done!';
+})
+```
+
+## Dedicated Job Classes
+Think queue jobs *not* the job listings jobs!
+
+Imagine a scenario wherean employer posts a job and it needs to be translated into multiple languages using AI. A dedicated job class could be used for this. In the terminal run `php artisan make:job` and give the job a name.
+
+The job class will be created in a new `Jobs` directory within the `app` directory.
+
+The class can then be used like any other class so the test route can be updated like this:
+```php
 Route::get('/test', function () {
-    return new JobPosted();
+
+    App\Jobs\TranslateJob::dispatch();
+    
 });
 ```
-Then just visit the uri to view the email.
+*Job classes have their own `dispatch()` method so there is no need for the queue closure*
 
-## Sending mail
-To send the email Laravel uses the `email facade`. We can also test this on the dummy route by updating.
+So now, in the context of the example scenario (translating a job to multiple languages) it would make sense to send a job listing through to be translated.
+
 ```php
-use Illuminate\Support\Facades\Mail;
-
 Route::get('/test', function () {
-    Mail::to('joe@example.com')->send(new JobPosted());
 
-    return 'Done!'; // Gives us feedback in the browser when visiting the test uri
+    $jobListing = Job::first();
+
+    TranlateJob::dispatch($jobListing);
+
 });
 ```
-Visit the test route again and you should see 'Done!'. As there are currently no mail providers configured for the app Laravel should default to logging the email instead. It will also be viewable in the Laravel DebugBar if installed.
 
-## Mail Config
-Mail config can be found in the config directory. This is where email providers would be configured. There are also other environment variables that can be configured in the .env file for example the `from` address.
-
-There are many different email service providers and each will likely have their own methods for configuring for their service. These should be documented with the provider or sometimes even provided for you. [Mailtrap](https://mailtrap.io/) for example provide settings for many frameworks that can be copied and pasted into the config file.
-
+Then in `TranslateJob.php`
 ```php
-MAIL_MAILER=smtp
-MAIL_HOST=sandbox.mailtrap.io
-MAIL_PORT=2525
-MAIL_USERNAME=your_username
-MAIL_PASSWORD=your_password
-MAIL_FROM_ADDRESS=info@laracasts.com
-MAIL_FROM_NAME="Laracasts"
+public function __construct(public Job $jobListing)
+{
+    //
+}
+
+public function handle()
+{
+    // Fake API call to translate class might look like this
+    AI::translate($jobListing, 'Spanish');
+
+    // To get some sort of output
+    logger('Translating ' . $this->jobListing->title . ' to Spanish...');
+}
 ```
 
-## Implementing email functionality
-To actually send an email when a job is posted the functionality needs to be triggered somewhere. The logic we created for the test route can be used from the `JobController` so that it is automatically fired when a job is created.
-
-Instead of harcoding an recipient email the relationships can be leveraged to get the email of the user creating the job instead. We can also return get the data for that job in the email constructor by passing the `$job` object into `JobPosted()`.
-
-```php
-    public function store()
-    {
-        // validation...
-        request()->validate([
-            'title' => 'required|min:3',
-            'salary' => 'required',
-        ]);
-
-        $job = Job::create([
-            'title' => request('title'),
-            'salary' => request('salary'),
-            'employer_id' => 1 // Temporarily hardcoded
-        ]);
-
-        // Send confirmation email to user
-        Mail::to($job->employer->user)->send(new JobPosted($job));
-
-        return redirect('/jobs');
-    }
-```
-
-**Be sure to update the constructor method in JobPosted to accept the $job data**
-```php
-public function __construct(public Job $job)
-```
-
-Something to be aware of with mail classes is that *all* `public` properties are instantly available within the mail view. If there is any data that you dont want to be available it needs to be a `protected` property in order to hide it. Then you can expose only the data that you want to the view by adding a `with: []` array to the view in the email `content()` method.
-
-Now when the controller hits the `Mail::to` it will fire an email to the user who created the job. If no email server has been configured this will still go to the logs instead.
+Ultimately the goal of queues is to do things that the user doesn't need to wait around for that might take a while. For example if you went to a shop to have some photos developed. You wouldn't stand and wait at the counter while they were done. You'd hand your photos to a `worker`, your photos would go in a `queue` and when they were ready you'd be notified, freeing you up to go and do other things in the meantime.
