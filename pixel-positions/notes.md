@@ -52,3 +52,65 @@ Transitions are super simple with Tailwind. Simply add the `transitions-[value]`
 ```html
 <div class="transition-colors duration-300">
 ```
+
+# Blade and Tailwind Techniques for Your Laravel Views
+When working with flex and images flex can do weird things if an img is a direct descendant of a flex container. For example a 42x4px image might blow up to fill the whole screen. To fix this just throw the image inside a `<div>`.
+
+## Custom fonts
+If using a font service like google fonts:
+* Use the `@import` statement to import the font at the very beginning of the app.css file
+* Add the font to an `@theme` rule `--font-roboto: 'Roboto', sans-serif;`
+* Use the font in the html <body class="font-roboto">
+Instructions are on [Tailwind](https://tailwindcss.com/docs/font-family#customizing-your-theme)
+
+## Tailwind Groups
+By applying the group class to a parent element Tailwind is able to apply conditional styles to child elements. The snippet below demonstrates how to turn a child element purple when the user hovers over the parent element.
+```html
+<div class="group">
+    <h3 class="group-hover:text-purple-500">
+```
+
+## Merging Classes
+When making re-usable components sometimes it's necessary to pass through unique attributes of types that are already set on the component. For example a component may have it's own classes set but it may be necessary to set additional classes when using the component in certain scenarios. Blade allows for this with the `merge()` helper.
+```php
+// panel.blade.php
+<div {{ $attributes->merge(['class' => 'text-bold font-sm bg-purple-500']) }}>
+```
+Then when the component is used additonal classes can be added that will be merged into the existing classes.
+```php
+<x-panel class="flex flex-col gap-y-2">
+```
+The `merge()` can also be shorthanded down to `$attributes(['class' => 'text-bold font-sm bg-purple-500'])`. Calling $attributes as a function will automaticaly merge attributes.
+
+### Tip for small screens
+It's also an idea to define the classes on a component as variables by opening up some php tags in the blade template. This way the variable can be referenced inside the component instead. Tailwind classes can quickly get long and spill off screen so this can help keep the clutter separated from the code.
+```php
+@php
+$classes = 'text-bold font-sm bg-purple-500';
+@endphp
+
+<div {{ $attributes(['class' => $classes]) }}>
+```
+
+## PHP Tags
+Opening up some php tags can be really helpful in a component. It allows for executing conditional logic and anything else PHP can do that you might need. For example:
+```php
+// tag.blade.php
+@props(['size' => 'base'])
+
+@php
+$classes = 'bg-white/10 rounded-xl font-bold hover:bg-white/25 transition-colors duration-300';
+if ($size === 'base') {
+    $classes .= ' px-5 py-1 text-sm';
+}
+
+if ($size === 'small') {
+    $classes .= ' px-3 py-1 text-2xs';
+}
+@endphp
+
+<a href="#" class="{{ $classes }}">{{ $slot }}</a>
+
+// job-card.blade.php
+<x-tag size="small">Backend</x-tag>
+```
