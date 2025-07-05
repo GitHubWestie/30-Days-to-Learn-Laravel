@@ -163,3 +163,91 @@ return view('index', [
 ```
 
 This will still get all jobs but they will be grouped into their own arrays inside the collection
+
+# The Everything Episode
+
+## Forms
+* Break forms down into re-usable components.
+* Use `props` to pass data/attributes through to the component from the parent template.
+* Use the `$attributes()` shorthand or `$attributes->merge()` to allow unique attibutes on components
+
+## Validation
+* Remember to use the `'confirmed'` rule o passwords to automatically check for a `confirmed_password` field
+* Use `Password::min()` to set the minimum length of a password
+* Use `File::type()` to set the accepted file types when validating a file upload field
+* When acceptng file uploads the form must have the `enctype="multipart/form-data"` attribute to work
+
+## Creating User and Employer Together
+The app uses a single registration form to capture user data and employer data. These can be split at the point of validation which allows for creating the user and employer together. This means we can also leverage the relationship between user and employer to automatically link the user_id to the employer at the point of creation.
+
+The logo needs to be handled slightly differently as it is a file type. First Laravel needs to know where to store the logo. In the `config` directory lives `filesystems.php`. This file contains various preset `storage disk` configs and more can be added here if required. As the logo will need to be publicly available it will need the public disk. This can be changed in `.env` under `FILESYSTEM_DISK`. 
+
+Laravel will then store images to the `storage/app/public` directory.
+
+```php
+// RegusteredUserController.php
+public function store(Request $request)
+    public function store(Request $request)
+    {
+        $userAttributes = $request->validate([
+            'name' => ['required'],
+            'email' => ['required', 'email', 'unique:users,email'],
+            'password' => ['required', 'confirmed', Password::min(8)],
+            'employer' => ['required'],
+            'logo' => ['required'],
+        ]);
+
+        $companyAttributes = $request->validate([
+            'employer' => ['required'],
+            'logo' => ['required', File::types(['png', 'jpg', 'jpeg', 'webp'])],
+        ]);
+
+        $user = User::create($userAttributes);
+
+        // Laravel will create a directory called 'logos' when the logo is submitted
+        $logoPath = $request->logo->store('logos');
+
+        // Create the employer record using the employer relationship
+        $user->employer()->create([
+            'name' => $companyAttributes['employer'],
+            'logo' => $logoPath,
+        ]);
+
+        Auth::login($user);
+
+        return redirect('/');
+    }
+```
+
+## Invokable Controllers
+Sometimes a controller will only ever have one function. In these instances they can be setup as an invokable controller. This means whenever the controller is accessed the contained function will be execute automatically.
+```php
+// SearchController.php
+public function __invoke()
+{
+    dd(request('q'));
+}
+
+//web.php
+Route::get('/search', SearchController::class);
+```
+*Note how there is no need to put the Controller::class in an array*
+
+## Route Model Binding
+A similar approach can be used to get all jobs with a given tag. 
+* Remember that by default when a wildcard is used in a route Laravel will search for an `id`. This can be changed by adding a colon followed by what we actually want Laravel to find `/tags/{tag:name}`.
+```php
+//web.php
+Route::get('/tags/{tag:name}', TagController::class);
+
+// TagController.php
+class TagController extends Controller
+{
+    public function __invoke(Tag $tag)
+    {
+        return view('results', [
+            'jobs' => $tag->jobs,
+        ]);
+    }
+}
+```
