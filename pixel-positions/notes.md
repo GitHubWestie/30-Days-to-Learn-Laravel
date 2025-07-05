@@ -114,3 +114,52 @@ if ($size === 'small') {
 // job-card.blade.php
 <x-tag size="small">Backend</x-tag>
 ```
+
+# Jobs, Tags, TDD, Oh My!
+In the previous lessons there were issues regarding the Laravel generated jobs tables which exist in the database for queued jobs. This forced the project to have a table named job_listings to avoid a conflict. This time around Laravel can take the hit and change it's tables.
+* Update the references to the jobs tables (there are 3) in the `config/queues` file to be `queued_jobs`
+* Update the migration file name to be create_queued_jobs_table
+* Update the table names in that migration file to be pre-pended with queued
+* Run `php artisan migrate:fresh` to update the database
+
+## Schemas
+When coding the schemas the `default()` method can be chained on to set a default value for that column.
+
+## Seeding Factories
+When seeding, model relaionships can be leveraged to attach a model instance to another model.
+
+```php
+// JobSeeder.php
+$tags = Tag::factory(3)->create();
+
+Job::factory(20)->hasAttached($tags)->create();
+```
+
+## Sequences
+Sequences can be used to control how a factory behaves when generating data. A sequence tells Laravel to iterate over set parameters
+```php
+use Illuminate\Database\Eloquent\Factories\Sequence;
+
+Job::factory(20)->create(new Sequence([
+    'featured' => false,
+    'schedule' => 'part-time',
+],
+[
+    'featured' => true,
+    'schedule' => 'full-time',
+]));
+```
+In this instance Laravel will create 20 jobs; 10 will have featured set to 0 (false) and 10 will have featured set to 1 (true).
+
+These can then be retrieved from the database into their own collection by doing something like this
+```php
+// JobController.php
+$jobs = Job::all()->groupBy('featured');
+
+return view('index', [
+    'featuredJobs' => $jobs[0],
+    'jobs' => $jobs[1],
+]);
+```
+
+This will still get all jobs but they will be grouped into their own arrays inside the collection
